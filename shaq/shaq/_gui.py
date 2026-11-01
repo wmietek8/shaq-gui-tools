@@ -27,6 +27,7 @@ from shaq._recognition import _STRINGS as RECOGNITION_STRINGS
 from shaq._recognition import (
     MAX_SIGNATURE_SECONDS,
     create_recognizer,
+    recognition_backoff_seconds,
     run_interruptible,
     signature_seconds,
 )
@@ -1422,21 +1423,9 @@ def _main() -> None:
                     if recognition_exc is not None:
                         consecutive_recognition_errors += 1
                         text = str(recognition_exc).strip()
-                        lowered = text.lower()
-                        is_rate_limit = (
-                            "429" in lowered
-                            or "too many requests" in lowered
+                        backoff_s = recognition_backoff_seconds(
+                            recognition_exc, consecutive_recognition_errors
                         )
-
-                        backoff_s = min(
-                            300.0,
-                            5.0 * (2.0 ** min(6, max(0, consecutive_recognition_errors - 1))),
-                        )
-                        if is_rate_limit:
-                            backoff_s = max(backoff_s, 30.0)
-                        retry_after = getattr(recognition_exc, "retry_after_s", None)
-                        if retry_after is not None:
-                            backoff_s = max(backoff_s, retry_after)
 
                         detail = f": {text}" if text else ""
                         self._events.put(
